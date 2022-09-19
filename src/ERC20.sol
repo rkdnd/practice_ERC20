@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract ERC20{
+import "./EIP712.sol";
+
+contract ERC20 is EIP712{
     mapping(address => uint256) private balances;
     mapping(address => mapping(address => uint256)) private allowances;
+    mapping(address  => uint256) private _nonces;
 
-    string internal _name;
+
     string internal _symbol;
     uint256 private _totalSupply;
     
@@ -17,8 +20,7 @@ contract ERC20{
     }
 
 
-    constructor(string memory name, string memory symbol) public {
-        _name = name;
+    constructor(string memory name, string memory symbol) EIP712(name, "1") public {
         _symbol = symbol;
         _totalSupply = 100 ether;
         balances[msg.sender] = 100 ether;
@@ -70,8 +72,37 @@ contract ERC20{
         _paused = true;
     }
 
-    function approve(address _owner, uint256 _value) external{
-        
+    function approve(address _spender, uint256 _value) public returns(bool){
+        allowances[msg.sender][_spender] = _value;
+
+        return true;
+    }
+
+    function nonces(address owner) public returns(uint256){
+        return _nonces[owner];
+    }
+
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s)
+    public {
+        require(block.timestamp <= deadline, "ERC20Permit: expired deadline");
+        // require(_nonces[owner] == nonce);
+
+        bytes32 structHash = keccak256(abi.encode(keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"), owner, spender, value, _nonces[owner], deadline));
+
+        bytes32 hash = _toTypedDataHash(structHash);
+
+        address signer = ecrecover(hash, v, r, s);
+        require(signer == owner, "INVALID_SIGNER");
+
+        allowances[owner][spender] = value;
+        _nonces[owner] += 1;
     }
     
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
